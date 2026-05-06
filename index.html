@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartLift Road — AI Traffic System</title>
+<style>
+  :root {
+    --blue: #00d4ff;
+    --green: #00ff88;
+    --orange: #ff6b35;
+    --red: #ff3366;
+    --bg: #050510;
+    --card: #0d0d2b;
+    --border: rgba(0,212,255,0.2);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:#fff; font-family:'Segoe UI',sans-serif; overflow-x:hidden; }
+
+  /* ── NAV ── */
+  nav {
+    position:fixed; top:0; width:100%; z-index:100;
+    background:rgba(5,5,16,0.85); backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+    padding:0 2.5rem; height:64px;
+  }
+  .logo { font-size:1.3rem; font-weight:800; letter-spacing:1px; }
+  .logo span { color:var(--blue); }
+  nav ul { list-style:none; display:flex; gap:2rem; }
+  nav a { color:#aaa; text-decoration:none; font-size:.9rem; transition:color .2s; }
+  nav a:hover { color:var(--blue); }
+
+  /* ── HERO ── */
+  #hero {
+    min-height:100vh; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; text-align:center;
+    padding:6rem 2rem 4rem;
+    background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(0,100,200,.18) 0%, transparent 70%);
+  }
+  .badge {
+    display:inline-block; border:1px solid var(--blue);
+    color:var(--blue); font-size:.75rem; letter-spacing:2px;
+    padding:.35rem 1rem; border-radius:999px; margin-bottom:1.5rem;
+    text-transform:uppercase;
+  }
+  h1 { font-size:clamp(2.4rem,6vw,5rem); font-weight:900; line-height:1.1; margin-bottom:1rem; }
+  h1 em { color:var(--blue); font-style:normal; }
+  .sub { font-size:1.15rem; color:#aaa; max-width:560px; margin:0 auto 2.5rem; line-height:1.7; }
+  .hero-btns { display:flex; gap:1rem; justify-content:center; flex-wrap:wrap; }
+  .btn {
+    padding:.75rem 2rem; border-radius:8px; font-size:1rem; font-weight:700;
+    cursor:pointer; border:none; transition:all .2s;
+  }
+  .btn-primary { background:var(--blue); color:#000; }
+  .btn-primary:hover { background:#33ddff; transform:translateY(-2px); box-shadow:0 6px 24px rgba(0,212,255,.4); }
+  .btn-outline { background:transparent; border:2px solid var(--blue); color:var(--blue); }
+  .btn-outline:hover { background:rgba(0,212,255,.1); transform:translateY(-2px); }
+
+  /* ── ROAD CANVAS SECTION ── */
+  #visual {
+    padding:6rem 2rem; text-align:center;
+    background:linear-gradient(180deg, transparent, rgba(0,30,60,.3), transparent);
+  }
+  .section-title { font-size:2rem; font-weight:800; margin-bottom:.5rem; }
+  .section-title span { color:var(--blue); }
+  .section-sub { color:#888; margin-bottom:3rem; font-size:.95rem; }
+  canvas#road { border-radius:16px; border:1px solid var(--border); max-width:100%; display:block; margin:0 auto; }
+  .road-legend { display:flex; gap:2rem; justify-content:center; margin-top:1.5rem; flex-wrap:wrap; }
+  .legend-item { display:flex; align-items:center; gap:.5rem; font-size:.85rem; color:#aaa; }
+  .legend-dot { width:12px; height:12px; border-radius:50%; }
+
+  /* ── DASHBOARD ── */
+  #dashboard { padding:6rem 2rem; }
+  .dash-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1.5rem; max-width:1100px; margin:0 auto 3rem; }
+  .sensor-card {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:14px; padding:1.5rem; position:relative; overflow:hidden;
+    transition:border-color .4s, box-shadow .4s;
+  }
+  .sensor-card.alert { border-color:var(--red); box-shadow:0 0 20px rgba(255,51,102,.2); }
+  .sensor-card::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:3px;
+    background:var(--blue); transition:background .4s;
+  }
+  .sensor-card.alert::before { background:var(--red); }
+  .sensor-icon { font-size:1.8rem; margin-bottom:.75rem; }
+  .sensor-label { font-size:.8rem; color:#888; text-transform:uppercase; letter-spacing:1px; margin-bottom:.4rem; }
+  .sensor-value { font-size:2.2rem; font-weight:900; color:var(--blue); transition:color .4s; }
+  .sensor-card.alert .sensor-value { color:var(--red); }
+  .sensor-unit { font-size:.8rem; color:#666; margin-top:.2rem; }
+  .sensor-bar-wrap { margin-top:1rem; background:rgba(255,255,255,.07); border-radius:999px; height:6px; }
+  .sensor-bar { height:6px; border-radius:999px; background:var(--blue); transition:width .6s ease, background .4s; }
+  .sensor-card.alert .sensor-bar { background:var(--red); }
+
+  /* AI status panel */
+  .ai-panel {
+    max-width:1100px; margin:0 auto 3rem;
+    background:var(--card); border:1px solid var(--border);
+    border-radius:16px; padding:2rem;
+    display:grid; grid-template-columns:1fr 1fr; gap:2rem;
+  }
+  @media(max-width:700px){ .ai-panel{ grid-template-columns:1fr; } }
+  .ai-left h3 { font-size:1.1rem; color:var(--blue); margin-bottom:1rem; }
+  .ai-thought {
+    background:rgba(0,212,255,.05); border-left:3px solid var(--blue);
+    border-radius:0 8px 8px 0; padding:1rem; font-size:.88rem;
+    color:#ccc; line-height:1.7; min-height:90px; transition:all .4s;
+  }
+  .ai-thought.deciding { border-color:var(--orange); background:rgba(255,107,53,.07); }
+  .ai-thought.activating { border-color:var(--green); background:rgba(0,255,136,.07); }
+
+  .road-status { display:flex; flex-direction:column; gap:1rem; }
+  .status-row { display:flex; justify-content:space-between; align-items:center; padding:.75rem 1rem; border-radius:10px; background:rgba(255,255,255,.04); }
+  .status-label { font-size:.85rem; color:#888; }
+  .status-pill {
+    font-size:.75rem; font-weight:700; padding:.3rem .9rem;
+    border-radius:999px; text-transform:uppercase; letter-spacing:1px;
+    transition:all .4s;
+  }
+  .pill-green { background:rgba(0,255,136,.15); color:var(--green); border:1px solid rgba(0,255,136,.3); }
+  .pill-orange { background:rgba(255,107,53,.15); color:var(--orange); border:1px solid rgba(255,107,53,.3); }
+  .pill-red { background:rgba(255,51,102,.15); color:var(--red); border:1px solid rgba(255,51,102,.3); }
+  .pill-blue { background:rgba(0,212,255,.15); color:var(--blue); border:1px solid rgba(0,212,255,.3); }
+
+  /* traffic chart */
+  #chartWrap {
+    max-width:1100px; margin:0 auto;
+    background:var(--card); border:1px solid var(--border);
+    border-radius:16px; padding:2rem;
+  }
+  #chartWrap h3 { font-size:1.1rem; color:var(--blue); margin-bottom:1.5rem; }
+  canvas#trafficChart { width:100% !important; }
+
+  /* ── HOW IT WORKS ── */
+  #how { padding:6rem 2rem; }
+  .steps { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:1.5rem; max-width:1100px; margin:0 auto; }
+  .step {
+    background:var(--card); border:1px solid var(--border);
+    border-radius:14px; padding:2rem 1.5rem; text-align:center;
+    transition:transform .2s, box-shadow .2s;
+  }
+  .step:hover { transform:translateY(-6px); box-shadow:0 12px 40px rgba(0,212,255,.15); }
+  .step-num {
+    width:48px; height:48px; border-radius:50%;
+    background:rgba(0,212,255,.12); border:2px solid var(--blue);
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.2rem; font-weight:900; color:var(--blue);
+    margin:0 auto 1rem;
+  }
+  .step h4 { font-size:1rem; margin-bottom:.5rem; }
+  .step p { font-size:.85rem; color:#888; line-height:1.6; }
+
+  /* ── IMPACT ── */
+  #impact { padding:6rem 2rem; text-align:center; background:rgba(0,30,60,.15); }
+  .stats { display:flex; gap:3rem; justify-content:center; flex-wrap:wrap; margin-top:3rem; }
+  .stat-box { }
+  .stat-num { font-size:3.5rem; font-weight:900; color:var(--blue); line-height:1; }
+  .stat-label { font-size:.85rem; color:#888; margin-top:.4rem; }
+
+  /* ── TEAM ── */
+  #team { padding:6rem 2rem; text-align:center; }
+  .team-tag { display:inline-block; background:rgba(0,212,255,.08); border:1px solid var(--border); border-radius:8px; padding:.5rem 1.5rem; font-size:.9rem; color:var(--blue); margin:.4rem; }
+
+  /* ── FOOTER ── */
+  footer { border-top:1px solid var(--border); padding:2rem; text-align:center; color:#555; font-size:.85rem; }
+  footer span { color:var(--blue); }
+
+  /* scroll reveal */
+  .reveal { opacity:0; transform:translateY(30px); transition:opacity .7s ease, transform .7s ease; }
+  .reveal.visible { opacity:1; transform:none; }
+
+  /* glowing text */
+  .glow { text-shadow: 0 0 30px rgba(0,212,255,.6); }
+
+  /* pulse dot */
+  .pulse-dot {
+    display:inline-block; width:10px; height:10px;
+    border-radius:50%; background:var(--green); margin-right:6px;
+    animation:pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%,100%{ box-shadow:0 0 0 0 rgba(0,255,136,.6); }
+    50%{ box-shadow:0 0 0 8px rgba(0,255,136,0); }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">Smart<span>Lift</span></div>
+  <ul>
+    <li><a href="#visual">The Road</a></li>
+    <li><a href="#dashboard">AI Live</a></li>
+    <li><a href="#how">How It Works</a></li>
+    <li><a href="#impact">Impact</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="badge">Pico Kids · Makthon Talpiot 2026</div>
+  <h1>The Road That <em>Thinks</em><br>and <em>Lifts</em></h1>
+  <p class="sub">An AI-powered two-layer road system. When traffic builds up, our system automatically raises a second road — reducing congestion in real time.</p>
+  <div class="hero-btns">
+    <button class="btn btn-primary" onclick="scrollTo({top:document.getElementById('dashboard').offsetTop-70,behavior:'smooth'})">See AI Live</button>
+    <button class="btn btn-outline" onclick="scrollTo({top:document.getElementById('how').offsetTop-70,behavior:'smooth'})">How It Works</button>
+  </div>
+</section>
+
+<!-- ROAD VISUAL -->
+<section id="visual">
+  <h2 class="section-title reveal">The <span>Lifting Road</span> System</h2>
+  <p class="section-sub reveal">See how both road layers and the AI ramp work together</p>
+  <canvas id="road" width="900" height="340"></canvas>
+  <div class="road-legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#00d4ff"></div> Regular Road</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#00ff88"></div> Elevated Road (AI Activated)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ff6b35"></div> Smart Ramp</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ffcc00"></div> Traffic Sensors</div>
+  </div>
+</section>
+
+<!-- DASHBOARD -->
+<section id="dashboard">
+  <h2 class="section-title reveal" style="text-align:center">AI <span>Live Dashboard</span></h2>
+  <p class="section-sub reveal" style="text-align:center">Real-time sensor data · Updated every second</p>
+
+  <div class="dash-grid">
+    <div class="sensor-card" id="card-density">
+      <div class="sensor-icon">🚗</div>
+      <div class="sensor-label">Traffic Density</div>
+      <div class="sensor-value" id="val-density">--</div>
+      <div class="sensor-unit">vehicles / km</div>
+      <div class="sensor-bar-wrap"><div class="sensor-bar" id="bar-density" style="width:0%"></div></div>
+    </div>
+    <div class="sensor-card" id="card-speed">
+      <div class="sensor-icon">⚡</div>
+      <div class="sensor-label">Average Speed</div>
+      <div class="sensor-value" id="val-speed">--</div>
+      <div class="sensor-unit">km/h</div>
+      <div class="sensor-bar-wrap"><div class="sensor-bar" id="bar-speed" style="width:0%"></div></div>
+    </div>
+    <div class="sensor-card" id="card-queue">
+      <div class="sensor-icon">🚦</div>
+      <div class="sensor-label">Queue Length</div>
+      <div class="sensor-value" id="val-queue">--</div>
+      <div class="sensor-unit">meters</div>
+      <div class="sensor-bar-wrap"><div class="sensor-bar" id="bar-queue" style="width:0%"></div></div>
+    </div>
+    <div class="sensor-card" id="card-wait">
+      <div class="sensor-icon">⏱️</div>
+      <div class="sensor-label">Avg Wait Time</div>
+      <div class="sensor-value" id="val-wait">--</div>
+      <div class="sensor-unit">seconds</div>
+      <div class="sensor-bar-wrap"><div class="sensor-bar" id="bar-wait" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <div class="ai-panel reveal">
+    <div class="ai-left">
+      <h3>🤖 AI Decision Engine</h3>
+      <div class="ai-thought" id="ai-thought">Monitoring traffic sensors... All readings normal. Road system operating in standard mode.</div>
+      <div style="margin-top:1rem;display:flex;gap:.75rem;flex-wrap:wrap;">
+        <button class="btn btn-primary" style="font-size:.8rem;padding:.5rem 1.2rem" onclick="simulateRush()">Simulate Rush Hour</button>
+        <button class="btn btn-outline" style="font-size:.8rem;padding:.5rem 1.2rem" onclick="simulateNormal()">Back to Normal</button>
+      </div>
+    </div>
+    <div class="road-status">
+      <div class="status-row">
+        <span class="status-label">Ground Road</span>
+        <span class="status-pill pill-green" id="pill-ground">Active</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Elevated Road</span>
+        <span class="status-pill pill-orange" id="pill-elevated">Standby</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Smart Ramp</span>
+        <span class="status-pill pill-orange" id="pill-ramp">Lowered</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">AI Confidence</span>
+        <span class="status-pill pill-blue" id="pill-confidence">94%</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">System Mode</span>
+        <span class="status-pill pill-green" id="pill-mode">Normal</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="chartWrap" class="reveal">
+    <h3><span class="pulse-dot"></span>Traffic Flow — Last 60 Seconds</h3>
+    <canvas id="trafficChart" height="80"></canvas>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <h2 class="section-title reveal" style="text-align:center">How It <span>Works</span></h2>
+  <p class="section-sub reveal" style="text-align:center">Four steps from congestion to clear roads</p>
+  <div class="steps">
+    <div class="step reveal">
+      <div class="step-num">1</div>
+      <h4>Sensors Detect</h4>
+      <p>Cameras and radar sensors placed on the road measure vehicle density, speed, and queue length every second.</p>
+    </div>
+    <div class="step reveal">
+      <div class="step-num">2</div>
+      <h4>AI Analyses</h4>
+      <p>Our AI processes all sensor data and predicts if traffic will exceed safe limits in the next few minutes.</p>
+    </div>
+    <div class="step reveal">
+      <div class="step-num">3</div>
+      <h4>Road Lifts</h4>
+      <p>When the AI gives the signal, the elevated road rises and the smart ramp lowers, opening the second lane.</p>
+    </div>
+    <div class="step reveal">
+      <div class="step-num">4</div>
+      <h4>Traffic Flows</h4>
+      <p>Vehicles move onto both layers. When traffic clears, the AI lowers the elevated road back down automatically.</p>
+    </div>
+  </div>
+</section>
+
+<!-- IMPACT -->
+<section id="impact">
+  <h2 class="section-title reveal">Real <span>Impact</span></h2>
+  <p class="section-sub reveal">What SmartLift can achieve in a city</p>
+  <div class="stats">
+    <div class="stat-box reveal">
+      <div class="stat-num glow">60%</div>
+      <div class="stat-label">Less congestion<br>at peak hours</div>
+    </div>
+    <div class="stat-box reveal">
+      <div class="stat-num glow">2×</div>
+      <div class="stat-label">Road capacity<br>when activated</div>
+    </div>
+    <div class="stat-box reveal">
+      <div class="stat-num glow">&lt;3s</div>
+      <div class="stat-label">AI reaction time<br>to traffic spike</div>
+    </div>
+    <div class="stat-box reveal">
+      <div class="stat-num glow">24/7</div>
+      <div class="stat-label">Automatic<br>monitoring</div>
+    </div>
+  </div>
+</section>
+
+<!-- TEAM -->
+<section id="team">
+  <h2 class="section-title reveal">Our <span>Team</span></h2>
+  <p class="section-sub reveal">Pico Kids — Makthon Talpiot 2026</p>
+  <div style="margin-top:2rem">
+    <span class="team-tag reveal">AI & Sensors</span>
+    <span class="team-tag reveal">Road Mechanics</span>
+    <span class="team-tag reveal">Safety Systems</span>
+    <span class="team-tag reveal">Urban Planning</span>
+  </div>
+</section>
+
+<footer>Built by <span>Pico Kids</span> · SmartLift Road System · Makthon Talpiot 2026</footer>
+
+<script>
+/* ─── ROAD CANVAS ANIMATION ─── */
+const canvas = document.getElementById('road');
+const ctx = canvas.getContext('2d');
+let rampAngle = 0; // 0=down, 1=up
+let targetRamp = 0;
+let elevatedOpacity = 0.3;
+let cars = [];
+
+function initCars() {
+  cars = [];
+  // ground road cars
+  for(let i=0;i<6;i++) cars.push({x:Math.random()*900, y:240, speed:1+Math.random()*1.5, lane:'ground', color:['#00d4ff','#aaa','#fff','#88aaff'][Math.floor(Math.random()*4)]});
+  // elevated road cars (start hidden)
+  for(let i=0;i<4;i++) cars.push({x:Math.random()*900, y:130, speed:1.5+Math.random()*2, lane:'elevated', color:['#00ff88','#ffcc00','#ff88aa'][Math.floor(Math.random()*3)], opacity:0});
+}
+initCars();
+
+let rushMode = false;
+
+function drawRoad() {
+  const W=canvas.width, H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  // background gradient
+  const bg = ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#050510'); bg.addColorStop(1,'#0a0a20');
+  ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
+
+  // ── ELEVATED ROAD ──
+  const elevY = 95;
+  ctx.save();
+  ctx.globalAlpha = 0.3 + elevatedOpacity * 0.7;
+  // road surface
+  ctx.fillStyle='#1a2a1a';
+  ctx.beginPath(); ctx.roundRect(80, elevY, 730, 50, 4); ctx.fill();
+  // glow edge
+  ctx.strokeStyle=`rgba(0,255,136,${0.3+elevatedOpacity*0.7})`;
+  ctx.lineWidth=2;
+  ctx.stroke();
+  // lane markings
+  ctx.setLineDash([30,20]);
+  ctx.strokeStyle=`rgba(0,255,136,${0.4+elevatedOpacity*0.6})`;
+  ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(80,elevY+25); ctx.lineTo(810,elevY+25); ctx.stroke();
+  ctx.setLineDash([]);
+  // label
+  ctx.fillStyle=`rgba(0,255,136,${0.6+elevatedOpacity*0.4})`;
+  ctx.font='bold 13px Segoe UI'; ctx.textAlign='left';
+  ctx.fillText('ELEVATED ROAD (AI Activated)',90, elevY+16);
+  ctx.restore();
+
+  // ── RAMP ──
+  const rampX = 810;
+  ctx.save();
+  ctx.globalAlpha = 0.3 + elevatedOpacity*0.7;
+  ctx.strokeStyle='#ff6b35'; ctx.lineWidth=8; ctx.lineCap='round';
+  const rampTopY = elevY + 50;
+  const rampBotY = 220;
+  const rampControlX = rampX + 40 + rampAngle*30;
+  ctx.beginPath();
+  ctx.moveTo(rampX, rampTopY);
+  ctx.quadraticCurveTo(rampControlX, (rampTopY+rampBotY)/2, rampX+10, rampBotY);
+  ctx.stroke();
+  // ramp label
+  ctx.fillStyle='rgba(255,107,53,.9)'; ctx.font='bold 11px Segoe UI'; ctx.textAlign='center';
+  ctx.fillText('SMART RAMP', rampX+30, (rampTopY+rampBotY)/2);
+  ctx.restore();
+
+  // ── GROUND ROAD ──
+  const gY = 205;
+  ctx.fillStyle='#1a1a2e';
+  ctx.beginPath(); ctx.roundRect(0, gY, W, 70, 4); ctx.fill();
+  ctx.strokeStyle='rgba(0,212,255,0.3)'; ctx.lineWidth=1.5;
+  ctx.strokeRect(0,gY,W,70);
+  // lane marking
+  ctx.setLineDash([40,25]);
+  ctx.strokeStyle='rgba(0,212,255,0.35)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0,gY+35); ctx.lineTo(W,gY+35); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='rgba(0,212,255,0.7)'; ctx.font='bold 12px Segoe UI'; ctx.textAlign='left';
+  ctx.fillText('REGULAR ROAD', 10, gY+18);
+
+  // ── SENSORS ──
+  const sensorPos = [120,280,440,600,760];
+  sensorPos.forEach(sx=>{
+    ctx.save();
+    ctx.fillStyle='rgba(255,204,0,0.9)';
+    ctx.beginPath(); ctx.arc(sx, gY-8, 6, 0, Math.PI*2); ctx.fill();
+    const pulse = 0.5 + 0.5*Math.sin(Date.now()/400 + sx);
+    ctx.strokeStyle=`rgba(255,204,0,${pulse*0.6})`;
+    ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(sx, gY-8, 10+pulse*4, 0, Math.PI*2); ctx.stroke();
+    ctx.restore();
+  });
+
+  // ── CARS ──
+  cars.forEach(car=>{
+    const show = car.lane==='ground' ? true : elevatedOpacity > 0.3;
+    if(!show) return;
+    ctx.save();
+    ctx.globalAlpha = car.lane==='elevated' ? Math.min(1, elevatedOpacity*2) : 1;
+    ctx.fillStyle=car.color;
+    ctx.beginPath();
+    ctx.roundRect(car.x-18, car.y-8, 36, 16, 4);
+    ctx.fill();
+    ctx.fillStyle='rgba(0,0,0,0.5)';
+    ctx.fillRect(car.x-10, car.y-6, 8,12);
+    ctx.fillRect(car.x+2, car.y-6, 8,12);
+    // headlights
+    ctx.fillStyle='rgba(255,255,180,0.9)';
+    ctx.beginPath(); ctx.arc(car.x+16, car.y-4, 2, 0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(car.x+16, car.y+4, 2, 0,Math.PI*2); ctx.fill();
+    ctx.restore();
+    // move
+    car.x += car.speed * (rushMode && car.lane==='ground' ? 0.3 : 1.2);
+    if(car.x > W+30) car.x = -40;
+  });
+
+  // animate ramp
+  rampAngle += (targetRamp - rampAngle) * 0.05;
+  elevatedOpacity += (targetRamp - elevatedOpacity) * 0.03;
+
+  requestAnimationFrame(drawRoad);
+}
+drawRoad();
+
+/* ─── SENSOR DATA SIMULATION ─── */
+let isRush = false;
+let density=30, speed=80, queue=50, wait=12;
+
+function updateSensors() {
+  if(isRush) {
+    density = Math.min(95, density + (Math.random()*4-0.5));
+    speed   = Math.max(8,  speed   - (Math.random()*3-0.3));
+    queue   = Math.min(98, queue   + (Math.random()*5-0.5));
+    wait    = Math.min(98, wait    + (Math.random()*4-0.5));
+  } else {
+    density = Math.max(15, density - (Math.random()*3-0.8));
+    speed   = Math.min(90, speed   + (Math.random()*3-0.5));
+    queue   = Math.max(5,  queue   - (Math.random()*4-0.8));
+    wait    = Math.max(5,  wait    - (Math.random()*3-0.8));
+  }
+  // add small noise
+  density += (Math.random()-0.5)*1.5;
+  speed   += (Math.random()-0.5)*2;
+  queue   += (Math.random()-0.5)*1.5;
+  wait    += (Math.random()-0.5)*1;
+
+  setCard('density', Math.round(density), Math.round(density), '%', density > 70);
+  setCard('speed',   Math.round(speed),   100-Math.round(speed), 'km/h', speed < 25);
+  setCard('queue',   Math.round(queue*8), Math.round(queue), 'm', queue > 70);
+  setCard('wait',    Math.round(wait*2),  Math.round(wait), 's', wait > 70);
+
+  updateAI();
+  addChartPoint(Math.round(density));
+}
+
+function setCard(id, display, barPct, unit, alert) {
+  document.getElementById('val-'+id).textContent = display;
+  document.getElementById('bar-'+id).style.width = Math.min(100,barPct)+'%';
+  document.getElementById('card-'+id).classList.toggle('alert', alert);
+}
+
+function updateAI() {
+  const thought = document.getElementById('ai-thought');
+  const modeEl = document.getElementById('pill-mode');
+  const elevEl = document.getElementById('pill-elevated');
+  const rampEl = document.getElementById('pill-ramp');
+  const confEl = document.getElementById('pill-confidence');
+
+  if(density > 85 || (density > 70 && speed < 20)) {
+    thought.className='ai-thought activating';
+    thought.textContent='⚠ HIGH ALERT: Density '+Math.round(density)+'%, speed '+Math.round(speed)+' km/h. Activating elevated road NOW. Ramp raised. Redirecting traffic to upper lane.';
+    modeEl.textContent='RUSH HOUR'; modeEl.className='status-pill pill-red';
+    elevEl.textContent='ACTIVE';    elevEl.className='status-pill pill-green';
+    rampEl.textContent='Raised';    rampEl.className='status-pill pill-green';
+    confEl.textContent=Math.round(90+Math.random()*9)+'%';
+    targetRamp=1; rushMode=true;
+  } else if(density > 60) {
+    thought.className='ai-thought deciding';
+    thought.textContent='📊 Traffic density rising ('+Math.round(density)+'%). Average speed dropping to '+Math.round(speed)+' km/h. Preparing elevated road — activation likely in 60 seconds.';
+    modeEl.textContent='Preparing'; modeEl.className='status-pill pill-orange';
+    elevEl.textContent='Standby';   elevEl.className='status-pill pill-orange';
+    rampEl.textContent='Lowered';   rampEl.className='status-pill pill-orange';
+    confEl.textContent=Math.round(75+Math.random()*15)+'%';
+    targetRamp=0.4; rushMode=false;
+  } else {
+    thought.className='ai-thought';
+    thought.textContent='✅ All sensors normal. Density '+Math.round(density)+'%, speed '+Math.round(speed)+' km/h. Road system in standard mode. Elevated road on standby.';
+    modeEl.textContent='Normal';  modeEl.className='status-pill pill-green';
+    elevEl.textContent='Standby'; elevEl.className='status-pill pill-orange';
+    rampEl.textContent='Lowered'; rampEl.className='status-pill pill-orange';
+    confEl.textContent=Math.round(92+Math.random()*7)+'%';
+    targetRamp=0; rushMode=false;
+  }
+}
+
+function simulateRush()   { isRush=true;  density=55; speed=60; queue=55; wait=55; }
+function simulateNormal() { isRush=false; density=30; speed=80; queue=20; wait=15; }
+
+setInterval(updateSensors, 1000);
+updateSensors();
+
+/* ─── MINI CHART ─── */
+const chartCanvas = document.getElementById('trafficChart');
+const chartCtx = chartCanvas.getContext('2d');
+let chartData = Array(60).fill(30);
+
+function addChartPoint(v) {
+  chartData.push(v);
+  if(chartData.length>60) chartData.shift();
+  drawChart();
+}
+
+function drawChart() {
+  const W=chartCanvas.offsetWidth||800, H=120;
+  chartCanvas.width=W; chartCanvas.height=H;
+  chartCtx.clearRect(0,0,W,H);
+  const step=W/(chartData.length-1);
+  const max=100;
+  // fill
+  const grad=chartCtx.createLinearGradient(0,0,0,H);
+  grad.addColorStop(0,'rgba(0,212,255,0.4)'); grad.addColorStop(1,'rgba(0,212,255,0)');
+  chartCtx.beginPath();
+  chartCtx.moveTo(0,H);
+  chartData.forEach((v,i)=>{ chartCtx.lineTo(i*step, H - (v/max)*H); });
+  chartCtx.lineTo(W,H); chartCtx.closePath();
+  chartCtx.fillStyle=grad; chartCtx.fill();
+  // line
+  chartCtx.beginPath();
+  chartData.forEach((v,i)=>{ i===0?chartCtx.moveTo(0,H-(v/max)*H):chartCtx.lineTo(i*step,H-(v/max)*H); });
+  chartCtx.strokeStyle='#00d4ff'; chartCtx.lineWidth=2.5;
+  chartCtx.lineJoin='round'; chartCtx.stroke();
+  // threshold line
+  chartCtx.setLineDash([6,4]);
+  chartCtx.strokeStyle='rgba(255,51,102,0.5)'; chartCtx.lineWidth=1.5;
+  chartCtx.beginPath(); chartCtx.moveTo(0,H-(70/max)*H); chartCtx.lineTo(W,H-(70/max)*H); ctx.stroke();
+  chartCtx.setLineDash([]);
+  chartCtx.fillStyle='rgba(255,51,102,0.7)'; chartCtx.font='11px Segoe UI';
+  chartCtx.fillText('AI Activation Threshold (70%)',6,H-(70/max)*H-5);
+}
+drawChart();
+
+/* ─── SCROLL REVEAL ─── */
+const obs = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('visible'); });
+},{threshold:.15});
+document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
+</script>
+</body>
+</html>
